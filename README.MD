@@ -128,12 +128,27 @@ unchanged and still require signatures.
 <!-- action-docs-inputs -->
 ## Inputs
 
-| parameter | description | required | default |
+| name | description | required | default |
 | --- | --- | --- | --- |
-| namespacelabs | Using Namespace Lab's runners | `false` | true |
-| darwin-cache-path | Mount path for the Namespace cache volume used as a file:// binary cache on macOS | `false` | /tmp/nix-cache |
-| checkout | Whether to checkout the repository | `false` | true |
-| short-length | length for short values | `false` | 7 |
+| `namespacelabs` | <p>Using Namespace Lab's runners</p> | `false` | `true` |
+| `darwin-cache-path` | <p>Mount path for the Namespace cache volume used as a file:// binary cache on macOS</p> | `false` | `/tmp/nix-cache` |
+| `checkout` | <p>Whether to checkout the repository</p> | `false` | `true` |
+| `short-length` | <p>length for short values</p> | `false` | `7` |
+| `github-slug` | <p>Export the GITHUB<em><em></em>SLUG / GITHUB<em></em></em>SHORT environment variables (rlespinasse/github-slug-action, ~1s). Only release/tagging jobs need them: set 'false' for plain test jobs. The default keeps today's behaviour.</p> | `false` | `true` |
+| `warm-bootstrap` | <p>Namespace Linux only. Re-create Nix from the persisted /nix cache volume without running the Determinate installer (~0.4s instead of ~6s). Any verification failure falls back to the installer. Set 'false' to always run the installer.</p> | `false` | `true` |
+| `warm-max-age-days` | <p>Namespace Linux only. A persisted Nix install older than this many days is refreshed by the installer instead of being re-used, so the Determinate Nix version still follows the installer</p> | `false` | `7` |
+| `devshell-cache` | <p>Namespace Linux only. Opt in to atomi-develop's dev-shell cache. A repo that sets 'true' asserts its dev shell depends only on flake.nix, flake.lock and nix/** (plus ATOMI<em>DEVENV</em>PATHS): not on <code>self</code>/git metadata, nor on other files. Off by default: atomi-develop is then plain <code>nix develop</code>.</p> | `false` | `false` |
+| `devshell-prewarm` | <p>With devshell-cache only. Space-separated installables (e.g. '.#ci .#cd'), written exactly as the jobs pass them to atomi-develop. Every job makes sure ALL of them are cached (a miss is evaluated and stored), so a shell used by few jobs is not lost when parallel jobs write the cache volume back last-writer-wins. Empty: each job caches only the shell it runs.</p> | `false` | `""` |
+| `flakehub-login` | <p>Log in to FlakeHub with the job's OIDC token on the warm-bootstrap path (only happens when the job has <code>id-token: write</code>). Set 'false' when the job needs OIDC for something else but uses no FlakeHub cache or private flakes: a login without FlakeHub access fails after ~10-30s of retries. The Determinate installer action (cold volume, GitHub-hosted) has no such switch and still logs in whenever the job has OIDC: drop <code>id-token: write</code> from jobs that do not need it.</p> | `false` | `true` |
+| `auth-bot-app-id` | <p>App Id for auth bot</p> | `false` | `""` |
+| `auth-bot-secret-key` | <p>Private key for auth bot</p> | `false` | `""` |
+| `attic` | <p>Configure attic as a substituter. Reads need no token (the cache is public); pushes additionally require attic-token.</p> | `false` | `true` |
+| `attic-user` | <p>Local server alias used by <code>attic login</code></p> | `false` | `primordial` |
+| `attic-url` | <p>Pull URL (Cloudflare-proxied; NARs are edge-cached)</p> | `false` | `https://attic.primordial.atomi.cloud` |
+| `attic-push-url` | <p>Push URL (DNS-only, bypasses the Cloudflare 100MB request-body limit that 413s large NAR uploads)</p> | `false` | `https://attic-direct.primordial.atomi.cloud` |
+| `attic-public-key` | <p>Public key for attic</p> | `false` | `primordial:puK/sRe9wgfcreXNCR+rym2gwLuICwIWyAwTSG9ctkU=` |
+| `attic-cache` | <p>Attic cache name</p> | `false` | `primordial` |
+| `attic-token` | <p>Token for attic</p> | `false` | `""` |
 <!-- action-docs-inputs -->
 
 <!-- action-docs-outputs -->
