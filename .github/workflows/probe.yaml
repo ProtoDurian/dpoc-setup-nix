@@ -53,7 +53,7 @@ jobs:
           ACTIONS_ID_TOKEN_REQUEST_TOKEN: ''
       - name: After
         shell: bash
-        run: echo "url set in later step: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+        run: 'echo "url set in later step: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"'
   path-stub:
     runs-on: ubuntu-24.04
     steps:
@@ -67,7 +67,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
       - name: After
         shell: bash
-        run: which -a determinate-nixd; nix --version
+        run: 'which -a determinate-nixd; nix --version'
   no-oidc:
     runs-on: ubuntu-24.04
     permissions:
