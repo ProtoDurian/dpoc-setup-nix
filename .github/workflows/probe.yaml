@@ -10,68 +10,33 @@ jobs:
     steps:
       - name: Install (plain, OIDC present)
         uses: DeterminateSystems/nix-installer-action@main
-      - name: Inspect
+      - name: Daemon log of the installer's login
         shell: bash
         run: |
-          set -x
-          which -a determinate-nixd || true
-          ls -la /nix/var/nix/profiles/default/bin | head -40
-          determinate-nixd --version || true
-          determinate-nixd login --help || true
-          determinate-nixd status || true
-      - name: OIDC claims (token itself never printed)
+          sudo journalctl -u determinate-nixd --no-pager -o short-precise | grep -iv 'nix-daemon\|accepted connection' | tail -80 || true
+      - name: determinate-nixd knobs (env vars and hosts it knows)
         shell: bash
         run: |
-          set -euo pipefail
-          tok="$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api.flakehub.com" | jq -r .value)"
-          p="$(cut -d. -f2 <<<"$tok" | tr '_-' '/+')"; while [ $(( ${#p} % 4 )) -ne 0 ]; do p="$p="; done
-          base64 -d <<<"$p" | jq '{iss,aud,sub,repository,repository_owner,repository_owner_id,repository_visibility,job_workflow_ref,exp,iat}'
-      - name: Time login again, with daemon log
+          strings /usr/local/bin/determinate-nixd | grep -oE '(DETERMINATE|FLAKEHUB|DETSYS)_[A-Z_]+' | sort -u | head -60 || true
+          strings /usr/local/bin/determinate-nixd | grep -oE 'https://[a-z.]*flakehub[a-z.]*[^" ]{0,40}' | sort -u | head -30 || true
+      - name: Time login again, verbose, with daemon log
         shell: bash
         run: |
-          start=$(date +%s.%N)
-          sudo journalctl -u determinate-nixd --no-pager -n 0 --show-cursor > /tmp/cur 2>&1 || true
-          cursor="$(sed -n 's/^-- cursor: //p' /tmp/cur)"
-          time determinate-nixd login github-action; echo "rc=$?"
-          echo "elapsed $(echo "$(date +%s.%N) - $start" | bc)"
-          sudo journalctl -u determinate-nixd --no-pager ${cursor:+--after-cursor="$cursor"} -o short-precise | tail -150
-      - name: Time a direct FlakeHub token exchange
+          c="$(sudo journalctl -u determinate-nixd -n 0 --show-cursor --no-pager | sed -n 's/^-- cursor: //p')"
+          s=$(date +%s.%N)
+          RUST_LOG=debug determinate-nixd login github-action || echo "rc=$?"
+          echo "elapsed $(echo "$(date +%s.%N) - $s" | bc)"
+          sudo journalctl -u determinate-nixd --no-pager --after-cursor="$c" -o short-precise | tail -120 || true
+      - name: FlakeHub API with our OIDC token (token itself never printed)
         shell: bash
         run: |
           tok="$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api.flakehub.com" | jq -r .value)"
-          for u in https://api.flakehub.com/ https://api.flakehub.com/oidc/github https://api.flakehub.com/login/github-action; do
-            curl -sS -o /tmp/body -w "$u -> %{http_code} in %{time_total}s\n" -H "Authorization: Bearer $tok" "$u" || true
+          for u in https://api.flakehub.com/token/create/github https://api.flakehub.com/cache/token https://api.flakehub.com/token; do
+            curl -sS -X POST -o /tmp/body -w "POST $u -> %{http_code} in %{time_total}s\n" -H "Authorization: Bearer $tok" "$u" || true
             head -c 300 /tmp/body; echo
           done
-  env-override:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Install with OIDC env blanked on the step
-        uses: DeterminateSystems/nix-installer-action@main
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_URL: ''
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ''
-      - name: After
-        shell: bash
-        run: 'echo "url set in later step: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"'
-  path-stub:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Stub determinate-nixd login
+      - name: Login with api.flakehub.com blackholed vs refused
         shell: bash
         run: |
-          d="$RUNNER_TEMP/atomi-no-flakehub"; mkdir -p "$d"
-          printf '%s\n' '#!/bin/sh' 'if [ "${1:-}" = login ]; then echo "FlakeHub login skipped (flakehub-login: false)"; exit 0; fi' 'exec /usr/local/bin/determinate-nixd "$@"' > "$d/determinate-nixd"
-          chmod +x "$d/determinate-nixd"; echo "$d" >> "$GITHUB_PATH"
-      - name: Install (stub in PATH)
-        uses: DeterminateSystems/nix-installer-action@main
-      - name: After
-        shell: bash
-        run: 'which -a determinate-nixd; nix --version'
-  no-oidc:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - name: Install (no OIDC)
-        uses: DeterminateSystems/nix-installer-action@main
+          echo "127.0.0.1 api.flakehub.com" | sudo tee -a /etc/hosts
+          s=$(date +%s.%N); determinate-nixd login github-action || echo "rc=$?"; echo "refused elapsed $(echo "$(date +%s.%N) - $s" | bc)"
